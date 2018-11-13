@@ -42,7 +42,9 @@ func createLog(values []interface{}) *log {
 			ret.duration = getDuration(values)
 			ret.values = getFormattedValues(values)
 			ret.sql = getFormatSQL(values, ret.values)
-			ret.other = append(ret.other, strconv.FormatInt(values[5].(int64), 10)+" rows affected or returned ")
+			if len(values) >= 6 {
+				ret.other = append(ret.other, strconv.FormatInt(values[5].(int64), 10)+" rows affected or returned ")
+			}
 		} else {
 			ret.other = append(ret.other, fmt.Sprint(values[2:]))
 		}

@@ -58,8 +58,8 @@ func Test_Logger_Postgres(t *testing.T) {
 		{
 			run: func() error { return db.Create(&Post{Title: "awesome"}).Error },
 			sql: fmt.Sprintf(
-				"INSERT INTO %q (%q,%q,%q) VALUES ($1,$2,$3) RETURNING %q.*",
-				"posts", "title", "body", "created_at",
+				"INSERT INTO %q (%q,%q,%q) VALUES (%v,%v,%v) RETURNING %q.*",
+				"posts", "title", "body", "created_at", "awesome", "", now.String(),
 				"posts",
 			),
 			values: []string{"awesome", "", now.String()},
@@ -74,8 +74,8 @@ func Test_Logger_Postgres(t *testing.T) {
 				return db.Where(&Post{Title: "awesome", Body: "This is awesome post !"}).First(&Post{}).Error
 			},
 			sql: fmt.Sprintf(
-				"SELECT * FROM %q  WHERE (%q = $1) AND (%q = $2) LIMIT 1",
-				"posts", "title", "body",
+				"SELECT * FROM %q  WHERE (%q = %v) AND (%q = %v) LIMIT 1",
+				"posts", "title", "awesome", "body", "This is awesome post !",
 			),
 			values: []string{"awesome", "This is awesome post !"},
 		},
