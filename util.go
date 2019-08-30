@@ -1,4 +1,4 @@
-package gormzap
+package gormzerolog
 
 import (
 	"fmt"
@@ -21,6 +21,15 @@ func isPrintable(s string) bool {
 	return true
 }
 
+func redactLong(s string) string {
+	if len(s) > maxLen {
+		return "'<redacted>'"
+	}
+	return s
+}
+
+const maxLen = 255
+
 func getFormattedValues(values []interface{}) []string {
 	rawValues := values[4].([]interface{})
 	formattedValues := make([]string, 0, len(rawValues))
@@ -30,14 +39,14 @@ func getFormattedValues(values []interface{}) []string {
 			formattedValues = append(formattedValues, fmt.Sprint(v))
 		case []byte:
 			if str := string(v); isPrintable(str) {
-				formattedValues = append(formattedValues, fmt.Sprint(str))
+				formattedValues = append(formattedValues, redactLong(fmt.Sprintf("'%s'", str)))
 			} else {
 				formattedValues = append(formattedValues, "<binary>")
 			}
 		default:
 			str := "NULL"
 			if v != nil {
-				str = fmt.Sprint(v)
+				str = redactLong(fmt.Sprintf("'%v'", v))
 			}
 			formattedValues = append(formattedValues, str)
 		}

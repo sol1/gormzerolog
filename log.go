@@ -1,4 +1,4 @@
-package gormzap
+package gormzerolog
 
 import (
 	"fmt"
@@ -6,11 +6,10 @@ import (
 	"time"
 
 	"github.com/jinzhu/gorm"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/rs/zerolog"
 )
 
-type log struct {
+type Record struct {
 	occurredAt time.Time
 	source     string
 	duration   time.Duration
@@ -19,26 +18,41 @@ type log struct {
 	other      []string
 }
 
-func (l *log) toZapFields() []zapcore.Field {
-	return []zapcore.Field{
-		zap.Time("occurredAt", l.occurredAt),
-		zap.String("source", l.source),
-		zap.Duration("duration", l.duration),
-		zap.String("sql", l.sql),
-		zap.Strings("values", l.values),
-		zap.Strings("other", l.other),
-	}
+func (l *Logger) toZRFields(r *Record) {
+	newLog := l.Event
+	newLog.Time("occurredAt", r.occurredAt)
+	newLog.Str("source", r.source)
+	newLog.Dur("duration", r.duration)
+	newLog.Str("sql", r.sql)
+	newLog.Strs("values", r.values)
+	newLog.Strs("other", r.other)
 }
 
-func createLog(values []interface{}) *log {
-	ret := &log{}
+func (l *Logger) createLog(values []interface{}) *Record {
+	ret := &Record{}
 	ret.occurredAt = gorm.NowFunc()
 
 	if len(values) > 1 {
 		var level = values[0]
 		ret.source = getSource(values)
 
-		if level == "sql" {
+		if level == "log" {
+			// By default, assume this is a user log.
+			// See: https://github.com/jinzhu/gorm/blob/32455088f24d6b1e9a502fb8e40fdc16139dbea8/scope.go#L96
+			// If this is an error log, we set level to error.
+			// See: https://github.com/jinzhu/gorm/blob/32455088f24d6b1e9a502fb8e40fdc16139dbea8/main.go#L718
+			if _, ok := values[2].(error); ok {
+				l.Level = zerolog.ErrorLevel
+			}
+
+			return &Record{
+				other:  append(ret.other, fmt.Sprint(values[2:])),
+				source: fmt.Sprintf("%v", values[1]),
+			}
+		} else if level == "sql" {
+
+			l.Level = zerolog.InfoLevel
+
 			ret.duration = getDuration(values)
 			ret.values = getFormattedValues(values)
 			ret.sql = getFormatSQL(values, ret.values)

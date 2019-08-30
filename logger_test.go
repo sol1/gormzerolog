@@ -1,18 +1,14 @@
-package gormzap
+package gormzerolog_test
 
 import (
 	"fmt"
+	"github.com/Ahmet-Kaplan/gorm-zerolog"
+	"github.com/Ahmet-Kaplan/gorm-zerolog/testhelper"
+	"github.com/jinzhu/gorm"
+	"github.com/rs/zerolog"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/mysql"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
-
-	"github.com/wantedly/gorm-zap/testhelper"
 )
 
 var pool *testhelper.DockerPool
@@ -24,10 +20,21 @@ func TestMain(m *testing.M) {
 }
 
 func Test_Logger_Postgres(t *testing.T) {
-	fac, logs := observer.New(zap.DebugLevel)
-	zapLogger := zap.New(fac)
+	z := zerolog.New(os.Stdout)
+	zerologLogger := gormzerolog.New(&z,
+		gormzerolog.WithLevel(zerolog.DebugLevel),
+	/*		gormzerolog.WithRecordToFields(func(r gormzerolog.Record) gormzerolog.RecordToFields {
+			return gormzerolog.WithRecordToFields()
+				zap.String("caller", r.Source),
+				zap.Float32("duration_ms", float32(r.Duration.Nanoseconds()/1000)/1000),
+				zap.String("query", r.SQL),
+				zap.Int64("rows_affected", r.RowsAffected),
+			}
+		}), */
+	)
+
 	defer func() {
-		err := zapLogger.Sync()
+		err := zerologLogger.Event.Send
 		if err != nil {
 			panic(err)
 		}
@@ -81,7 +88,7 @@ func Test_Logger_Postgres(t *testing.T) {
 		},
 	}
 
-	db.SetLogger(New(zapLogger))
+	db.SetLogger(zerologLogger)
 	db.LogMode(true)
 
 	for _, c := range cases {
@@ -90,13 +97,14 @@ func Test_Logger_Postgres(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		entries := logs.TakeAll()
+		// TODO: Must get from log entries
+		entries := map[string]interface{}{}
 
 		if got, want := len(entries), 1; got != want {
 			t.Errorf("Logger logged %d items, want %d items", got, want)
 		}
 
-		fieldByName := entries[0].ContextMap()
+		fieldByName := entries
 
 		if got, want := fieldByName["sql"].(string), c.sql; got != want {
 			t.Errorf("Logged sql was %q, want %q", got, want)
