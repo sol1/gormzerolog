@@ -1,12 +1,33 @@
-# gorm-zerolog
-[![Build Status](https://travis-ci.org/Ahmet-Kaplan/gorm-zerolog.svg?branch=master)](https://travis-ci.org/Ahmet-Kaplan/gorm-zerolog)
-[![codecov](https://codecov.io/gh/Ahmet-Kaplan/gorm-zerolog/branch/master/graph/badge.svg)](https://codecov.io/gh/Ahmet-Kaplan/gorm-zerolog)
-[![GoDoc](https://godoc.org/github.com/Ahmet-Kaplan/gorm-zerolog?status.svg)](https://godoc.org/github.com/wantedly/gorm-zerolog)
-[![license](https://img.shields.io/github/license/Ahmet-Kaplan/gorm-zerolog.svg)](./LICENSE)
+Do you use [Zerolog](https://github.com/rs/zerolog)?  Do you use [GORM](https://gorm.io)?
+Would you like your GORM logs to go through Zerolog?  Then this package is for you!
 
-Alternative logging with [zerolog](https://github.com/rs/zerolog) for [GORM](http://jinzhu.me/gorm) ⚡️
+Loosely based on [the package of (nearly) the same
+name](https://github.com/Ahmet-Kaplan/gorm-zerolog) by
+[Ahmet-Kaplan](https://github.com/Ahmet-Kaplan), but wildly incompatible due to
+changes in GORM, and philosophical differences.
 
-In comparison to gorm's default logger, `gorm-zerolog` is faster, reflection free, low allocations and no regex compilations.
+
+# Usage
+
+To use `gormzerolog` in your GORM database instance, you need to do two things.
+Firstly, point the GORM config's `Logger` field at an instance of `gormzerolog.Logger`:
+
+```go
+db, err := gorm.Open(..., &gorm.Config{Logger: gormzerolog.Logger{}})
+```
+
+This will tell GORM to use gormzerolog for all (well, *almost*[^1] all...) of its logging
+needs.  However, by default this will log to a "null" zerolog that doesn't do anything.
+In order to actually generate logs, a configured zerolog logger needs to be put into the
+database's context:
+
+```go
+logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
+
+db = db.WithContext(logger.WithContext(context.Background()))
+```
+
+Then, whatever the GORM DB instance wants to log, will go through zerolog.
 
 
 ## Example
@@ -15,27 +36,57 @@ In comparison to gorm's default logger, `gorm-zerolog` is faster, reflection fre
 package main
 
 import (
-	"github.com/jinzhu/gorm"
-	"github.com/Ahmet-Kaplan/gorm-zerolog"
+	"github.com/sol1/gormzerolog"
+
+  "context"
+  "os"
+
+  "github.com/rs/zerolog"
+	"gorm.io/gorm"
+	"gorm.io/driver/sqlite"
 )
 
-const (
-	databaseURL = "postgres://postgres:@localhost/gormzr?sslmode=disable"
-)
+type User struct {
+  gorm.Model
+
+  Name  string
+}
 
 func main() {
-	logger, err = zerolog.NewProduction()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: gormzerolog.Logger{}})
 	if err != nil {
 		panic(err)
 	}
+  logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger().Level(zerolog.TraceLevel)
+  db = db.WithContext(logger.WithContext(context.Background()))
 
-	db, err := gorm.Open("postgres", databaseURL)
-	if err != nil {
-		panic(err)
-	}
-	db.LogMode(true)
-	db.SetLogger(gorm-zerolog.New(logger))
+  db.AutoMigrate(&User{})
 
-	// ...
+  db.Save(&User{Name: "Charlie"})
 }
 ```
+
+
+# Contributing
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+
+# Licence
+
+Unless otherwise stated, everything in this repo is covered by the following
+copyright notice:
+
+    Copyright (C) 2020  Sol1 Pty Ltd
+
+    This program is free software: you can redistribute it and/or modify it
+    under the terms of the GNU General Public License version 3, as
+    published by the Free Software Foundation.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.

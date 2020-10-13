@@ -1,52 +1,75 @@
 package gormzerolog
 
 import (
+	"context"
+	"fmt"
+	"time"
+
 	"github.com/rs/zerolog"
+
+	"gorm.io/gorm/logger"
 )
 
-// New create logger object for *gorm.DB from *zeroLog.Logger
-// By default it logs with debug level.
-func New(origin *zerolog.Logger, opts ...LoggerOption) *Logger {
-	l := &Logger{
-		ZRLog: origin,
-		Level: zerolog.DebugLevel,
-		Event: origin.WithLevel(zerolog.DebugLevel),
-	}
+type Logger struct {
+}
 
-	for _, o := range opts {
-		o(l)
-	}
-
+func (l Logger) LogMode(logger.LogLevel) logger.Interface {
 	return l
 }
 
-// Logger is an alternative implementation of *gorm.Logger
-type Logger struct {
-	ZRLog *zerolog.Logger
-	Level zerolog.Level
-	Event *zerolog.Event
+func (l Logger) Error(ctx context.Context, msg string, opts ...interface{}) {
+	zerolog.Ctx(ctx).Error().Msg(fmt.Sprintf(msg, opts...))
 }
 
-// LoggerOption is an option for Logger.
-type LoggerOption func(*Logger)
+func (l Logger) Warn(ctx context.Context, msg string, opts ...interface{}) {
+	zerolog.Ctx(ctx).Warn().Msg(fmt.Sprintf(msg, opts...))
+}
 
-// WithLevel returns Logger option that sets level for gorm logs.
-// It affects only general logs, e.g. those that contain SQL queries.
-// Errors will be logged with error level independently of this option.
-func WithLevel(level zerolog.Level) LoggerOption {
-	return func(l *Logger) {
-		l.Level = level
-		l.Event = l.ZRLog.WithLevel(level)
+func (l Logger) Info(ctx context.Context, msg string, opts ...interface{}) {
+	zerolog.Ctx(ctx).Info().Msg(fmt.Sprintf(msg, opts...))
+}
+
+func (l Logger) Trace(ctx context.Context, begin time.Time, f func() (string, int64), err error) {
+	zl := zerolog.Ctx(ctx)
+	var event *zerolog.Event
+
+	if err != nil {
+		event = zl.Debug()
+	} else {
+		event = zl.Trace()
 	}
-}
 
-// Print passes arguments to Println
-func (l *Logger) Print(values ...interface{}) {
-	l.Println(values)
-}
+	var dur_key string
 
-// Println format & print log
-func (l *Logger) Println(values []interface{}) {
-	l.toZRFields(l.createLog(values))
-	l.Event.Send()
+	switch zerolog.DurationFieldUnit {
+		case time.Nanosecond:
+			dur_key = "elapsed_ns"
+		case time.Microsecond:
+			dur_key = "elapsed_us"
+		case time.Millisecond:
+			dur_key = "elapsed_ms"
+		case time.Second:
+			dur_key = "elapsed"
+		case time.Minute:
+			dur_key = "elapsed_min"
+		case time.Hour:
+			dur_key = "elapsed_hr"
+		default:
+			zl.Error().Interface("zerolog.DurationFieldUnit", zerolog.DurationFieldUnit).Msg("gormzerolog encountered a mysterious, unknown value for DurationFieldUnit")
+			dur_key = "elapsed_"
+		}
+
+	event.Dur(dur_key, time.Since(begin))
+
+	sql, rows := f()
+	if sql != "" {
+		event.Str("sql", sql)
+	}
+	if rows > -1 {
+		event.Int64("rows", rows)
+	}
+
+	event.Send()
+
+	return
 }
