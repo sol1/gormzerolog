@@ -90,3 +90,10 @@ copyright notice:
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+-----
+
+[^1]: for some unfathomable reason, certain internal errors in GORM still
+  go through the built-in logger.  Presumably someone just referred to the
+  wrong variable somewhere.  In normal use, you'll never see it, so just
+  pretend it doesn't happen.
