@@ -1,7 +1,7 @@
 package gormzerolog_test
 
 import (
-	"github.com/mpalmer/gorm-zerolog"
+	"github.com/sol1/gormzerolog"
 
 	"context"
 	"encoding/json"
